@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f6f1">
+  <title>Campus Layout Designer · Campus Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="designer.css">
+  <script src="designer.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-block"><a class="brand" href="index.html"><span class="brand-mark">✳</span> Campus Explorer</a><span class="divider"></span><span class="page-title">Campus Layout Designer</span></div>
+    <div class="top-actions">
+      <button id="undoButton" class="icon-button" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+      <button id="redoButton" class="icon-button" type="button" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button>
+      <span class="action-divider"></span>
+      <button id="loadButton" class="quiet-button" type="button">Load Draft</button>
+      <button id="saveButton" class="quiet-button" type="button">Save Draft</button>
+      <div class="export-menu-wrap"><button id="exportMenuButton" class="primary-button" type="button" aria-expanded="false">Export <span aria-hidden="true">⌄</span></button>
+        <div class="export-menu" id="exportMenu" hidden>
+          <button type="button" data-export="json">Export Layout JSON</button>
+          <button type="button" data-export="svg">Export SVG</button>
+          <button type="button" data-export="copy">Copy JSON</button>
+          <button type="button" data-export="codex">Copy Layout for Codex</button>
+          <button type="button" data-export="import">Import Layout…</button>
+        </div>
+      </div>
+      <button id="previewButton" class="quiet-button" type="button">Preview Mode</button>
+      <button id="resetButton" class="danger-button" type="button">Reset Layout</button>
+    </div>
+  </header>
+
+  <main class="editor-shell" id="editorShell">
+    <aside class="side-panel elements-panel" aria-label="Campus elements">
+      <div class="panel-heading"><div><p class="eyebrow">LAYOUT LIBRARY</p><h1>Elements</h1></div><span class="total-pill" id="locationTotal">50 rooms</span></div>
+      <div class="element-list" id="elementList"></div>
+      <div class="add-tools"><button id="addCorridor" type="button" class="tool-button"><span>＋</span> Add Corridor</button><button id="addArea" type="button" class="tool-button"><span>＋</span> Add Area</button></div>
+      <div class="grid-settings">
+        <p class="eyebrow">CANVAS GRID</p>
+        <label class="check-row"><input type="checkbox" id="snapToggle" checked><span class="check-ui"></span> Snap to Grid</label>
+        <label class="check-row"><input type="checkbox" id="gridToggle" checked><span class="check-ui"></span> Show Grid</label>
+        <label class="setting-row" for="gridSize">Grid size<select id="gridSize"><option>10</option><option selected>20</option><option>25</option><option>50</option></select></label>
+      </div>
+    </aside>
+
+    <section class="canvas-column" aria-label="Design canvas">
+      <div class="canvas-toolbar">
+        <div class="canvas-label"><span class="canvas-status-dot"></span><span>DESIGN CANVAS</span><span class="canvas-dimensions">1000 × 2200</span></div>
+        <div class="zoom-controls"><button type="button" id="zoomOut" aria-label="Zoom out">−</button><span id="zoomLabel">100%</span><button type="button" id="zoomIn" aria-label="Zoom in">＋</button><button type="button" id="fitButton" class="fit-button">Fit</button></div>
+      </div>
+      <div class="canvas-viewport" id="canvasViewport">
+        <svg id="canvasSvg" class="canvas-svg" viewBox="0 0 1000 2200" role="application" aria-label="Editable campus layout canvas">
+          <defs><pattern id="editorGrid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#dcd8ce" stroke-width="1" stroke-opacity=".58"/></pattern></defs>
+          <rect class="canvas-paper" x="0" y="0" width="1000" height="2200"/>
+          <rect id="gridSurface" x="0" y="0" width="1000" height="2200" fill="url(#editorGrid)" pointer-events="none"/>
+          <g id="worldLayer"></g>
+        </svg>
+        <div class="canvas-empty-hint" id="canvasHint">Drag to move · Select an element to edit its size and position</div>
+      </div>
+      <footer class="status-bar" id="statusBar"><span id="selectedStatus">Selected: none</span><span id="coordinateStatus">X: —　Y: —　W: —　H: —</span><span id="zoomStatus">Zoom: 100%</span><span id="gridStatus">Grid: 20</span><span id="saveStatus" aria-live="polite">Draft ready</span></footer>
+    </section>
+
+    <aside class="side-panel properties-panel" aria-label="Element properties">
+      <div class="panel-heading"><div><p class="eyebrow">SELECTION</p><h2>Properties</h2></div><span id="selectionBadge" class="selection-badge">None</span></div>
+      <div id="emptyProperties" class="empty-properties"><span class="empty-icon">⌖</span><strong>Select an element</strong><span>Choose a room, corridor, area, or label on the canvas.</span></div>
+      <form id="propertyForm" class="property-form" hidden>
+        <label id="nameFieldWrap" class="field-label">Name<input id="propName" data-property="name" type="text" autocomplete="off"></label>
+        <label id="idFieldWrap" class="field-label">Location ID<input id="propId" type="text" readonly></label>
+        <div class="field-grid"><label class="field-label">X<input id="propX" data-property="x" type="number" step="1"></label><label class="field-label">Y<input id="propY" data-property="y" type="number" step="1"></label><label class="field-label">Width<input id="propWidth" data-property="width" type="number" min="30" step="1"></label><label class="field-label">Height<input id="propHeight" data-property="height" type="number" min="24" step="1"></label></div>
+        <label class="field-label">Layer<input id="propLayer" data-property="layer" type="number" step="1"></label>
+        <div class="layer-controls"><button type="button" data-layer="forward">Bring Forward</button><button type="button" data-layer="backward">Send Backward</button><button type="button" data-layer="front">Bring to Front</button><button type="button" data-layer="back">Send to Back</button></div>
+        <div class="selection-tools" id="singleTools"><button id="duplicateButton" type="button">Duplicate</button><button id="deleteButton" type="button" class="delete-element">Delete</button></div>
+        <p class="room-protection" id="roomProtection" hidden>Campus locations are permanent so their IDs stay intact.</p>
+      </form>
+      <div id="multiTools" class="multi-tools" hidden><strong id="multiCount">0 selected</strong><div class="align-grid"><button type="button" data-align="left">Align Left</button><button type="button" data-align="right">Align Right</button><button type="button" data-align="top">Align Top</button><button type="button" data-align="bottom">Align Bottom</button><button type="button" data-align="centerX">Center Horizontally</button><button type="button" data-align="centerY">Center Vertically</button><button type="button" data-align="distributeX">Distribute Horizontally</button><button type="button" data-align="distributeY">Distribute Vertically</button></div><button id="multiFront" type="button" class="full-width-button">Bring to Front</button></div>
+    </aside>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="modal-backdrop" id="resetModal" hidden><section class="modal" role="dialog" aria-modal="true" aria-labelledby="resetTitle"><button type="button" class="modal-close" data-close-reset aria-label="Close">×</button><span class="modal-icon">↺</span><p class="eyebrow">RESET DESIGN</p><h2 id="resetTitle">Restore the starting layout?</h2><p>Your saved designer draft will be replaced. Campus Explorer progress is not affected.</p><div class="modal-actions"><button type="button" class="quiet-button" data-close-reset>Keep editing</button><button type="button" id="confirmReset" class="danger-button">Reset Layout</button></div></section></div>
+  <div class="modal-backdrop" id="importModal" hidden><section class="modal import-modal" role="dialog" aria-modal="true" aria-labelledby="importTitle"><button type="button" class="modal-close" data-close-import aria-label="Close">×</button><span class="modal-icon">⇧</span><p class="eyebrow">RESTORE A DESIGN</p><h2 id="importTitle">Import Layout</h2><p>Choose a JSON file or paste exported layout data.</p><label class="file-picker">Choose JSON file<input id="importFile" type="file" accept=".json,application/json"></label><textarea id="importText" rows="8" placeholder="Paste layout JSON here…"></textarea><p class="import-error" id="importError" aria-live="polite"></p><div class="modal-actions"><button type="button" class="quiet-button" data-close-import>Cancel</button><button type="button" id="applyImport" class="primary-button">Import Layout</button></div></section></div>
+  <div class="preview-exit" id="previewExit" hidden><button id="exitPreview" type="button">Exit Preview</button></div>
+</body>
+</html>
