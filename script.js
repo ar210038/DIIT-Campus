@@ -160,6 +160,10 @@ function updateResultCard(total = selectedIds.size, percent = Math.round(selecte
 }
 let shareImageBusy = false;
 let previewImageUrl = null;
+let cachedShareImage = null;
+let cachedShareSelection = "";
+let pendingShareImage = null;
+let pendingShareSelection = "";
 const shareImageSize = { width: 1080, height: 2400 };
 const shareImageColors = { background: "#F8F6F1", text: "#18201C", green: "#138A68", beige: "#E8E1D5", secondary: "#747A75" };
 
@@ -247,6 +251,33 @@ async function generateShareImage() {
   } finally { URL.revokeObjectURL(svgUrl); }
 }
 
+function currentSelectionKey() { return [...selectedIds].sort().join("\n"); }
+async function getShareImage() {
+  const selection = currentSelectionKey();
+  if (cachedShareImage && cachedShareSelection === selection) return cachedShareImage;
+  if (!pendingShareImage || pendingShareSelection !== selection) {
+    pendingShareSelection = selection;
+    pendingShareImage = generateShareImage();
+  }
+  const pending = pendingShareImage;
+  try {
+    const blob = await pending;
+    if (currentSelectionKey() === selection) {
+      cachedShareImage = blob;
+      cachedShareSelection = selection;
+    }
+    return blob;
+  } finally {
+    if (pendingShareImage === pending) { pendingShareImage = null; pendingShareSelection = ""; }
+  }
+}
+function mobileBrowser() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform)); }
+function canShareImageFiles() {
+  if (typeof File === "undefined" || !navigator.share || !navigator.canShare) return false;
+  try { return navigator.canShare({ files: [new File(["x"], "campus-map.png", { type: "image/png" })] }); }
+  catch { return false; }
+}
+
 function downloadShareImage(blob) {
   const total = selectedIds.size, places = allLocations.length;
   const link = document.createElement("a");
@@ -256,7 +287,19 @@ function downloadShareImage(blob) {
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
-async function withShareImage(button, action) {
+function openMobileImage(blob, tab) {
+  const url = URL.createObjectURL(blob);
+  if (tab && !tab.closed) tab.location.href = url;
+  else {
+    const link = document.createElement("a");
+    link.href = url; link.target = "_blank"; link.rel = "noopener";
+    document.body.append(link); link.click(); link.remove();
+  }
+  // Keep the blob URL alive long enough for the browser's image viewer and save UI.
+  setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
+}
+
+async function withShareImage(button, action, auxiliaryWindow = null) {
   const status = document.querySelector("#copyStatus");
   if (shareImageBusy) return;
   shareImageBusy = true;
@@ -266,9 +309,10 @@ async function withShareImage(button, action) {
   button.textContent = "Generating map…";
   status.textContent = "";
   try {
-    const blob = await generateShareImage();
+    const blob = await getShareImage();
     await action(blob);
   } catch (error) {
+    if (auxiliaryWindow && !auxiliaryWindow.closed) auxiliaryWindow.close();
     if (error?.name === "AbortError") status.textContent = "Sharing cancelled.";
     else status.textContent = "Could not create the map image. Please try again.";
   } finally {
@@ -281,14 +325,17 @@ async function withShareImage(button, action) {
 async function refreshSharePreview() {
   const image = document.querySelector("#resultMapPreview");
   const loading = document.querySelector("#resultPreviewLoading");
+  const actions = ["#shareCampusMap", "#downloadCampusMap", "#copyMapImage"].map(selector => document.querySelector(selector));
+  actions.forEach(button => { button.disabled = true; });
   loading.hidden = false; image.hidden = true;
   try {
-    const blob = await generateShareImage();
+    const blob = await getShareImage();
     if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
     previewImageUrl = URL.createObjectURL(blob);
     image.src = previewImageUrl;
     image.hidden = false; loading.hidden = true;
   } catch { loading.textContent = "Map preview unavailable. You can still try downloading the image."; }
+  finally { actions.forEach(button => { button.disabled = false; }); }
 }
 
 function openModal(modal) {
@@ -366,8 +413,26 @@ document.querySelector("#copyResult").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(resultText()); status.textContent = "Copied to clipboard!"; }
   catch { status.textContent = "Clipboard unavailable in this browser."; }
 });
-document.querySelector("#downloadCampusMap").addEventListener("click", event => withShareImage(event.currentTarget, blob => { downloadShareImage(blob); document.querySelector("#copyStatus").textContent = "Map image downloaded."; }));
-document.querySelector("#shareCampusMap").addEventListener("click", event => withShareImage(event.currentTarget, async blob => {
+document.querySelector("#downloadCampusMap").addEventListener("click", event => {
+  const useMobileShare = mobileBrowser() && canShareImageFiles();
+  const imageTab = mobileBrowser() && !useMobileShare ? window.open("about:blank", "_blank") : null;
+  withShareImage(event.currentTarget, async blob => {
+    if (useMobileShare) {
+      const file = new File([blob], `campus-explorer-${selectedIds.size}-of-${allLocations.length}.png`, { type: "image/png" });
+      await navigator.share({ title: "My Campus Explorer Map", files: [file] });
+      document.querySelector("#copyStatus").textContent = "Choose Save to Files or another destination in the share sheet.";
+    } else if (mobileBrowser()) {
+      openMobileImage(blob, imageTab);
+      document.querySelector("#copyStatus").textContent = "Map opened in a new tab. Use your browser’s Share or Save option to keep it.";
+    } else {
+      downloadShareImage(blob);
+      document.querySelector("#copyStatus").textContent = "Map image downloaded.";
+    }
+  }, imageTab);
+});
+document.querySelector("#shareCampusMap").addEventListener("click", event => {
+  const imageTab = mobileBrowser() && !canShareImageFiles() ? window.open("about:blank", "_blank") : null;
+  withShareImage(event.currentTarget, async blob => {
   const total = selectedIds.size, places = allLocations.length, percent = Math.round(total / places * 100);
   const canShareFile = typeof File !== "undefined" && navigator.share && navigator.canShare;
   const file = canShareFile ? new File([blob], `campus-explorer-${total}-of-${places}.png`, { type: "image/png" }) : null;
@@ -377,14 +442,15 @@ document.querySelector("#shareCampusMap").addEventListener("click", event => wit
       document.querySelector("#copyStatus").textContent = "Campus map shared.";
     } catch (error) {
       if (error?.name === "AbortError") throw error;
-      downloadShareImage(blob);
-      document.querySelector("#copyStatus").textContent = "Image saved! You can now share it anywhere.";
+      if (mobileBrowser()) openMobileImage(blob, imageTab); else downloadShareImage(blob);
+      document.querySelector("#copyStatus").textContent = mobileBrowser() ? "Map opened in a new tab. Use your browser’s Share or Save option to keep it." : "Image saved! You can now share it anywhere.";
     }
   } else {
-    downloadShareImage(blob);
-    document.querySelector("#copyStatus").textContent = "Image saved! You can now share it anywhere.";
+    if (mobileBrowser()) openMobileImage(blob, imageTab); else downloadShareImage(blob);
+    document.querySelector("#copyStatus").textContent = mobileBrowser() ? "Map opened in a new tab. Use your browser’s Share or Save option to keep it." : "Image saved! You can now share it anywhere.";
   }
-}));
+  }, imageTab);
+});
 const copyMapButton = document.querySelector("#copyMapImage");
 if (navigator.clipboard?.write && window.ClipboardItem && window.isSecureContext) {
   copyMapButton.hidden = false;
