@@ -158,6 +158,139 @@ function updateResultCard(total = selectedIds.size, percent = Math.round(selecte
   document.querySelector("#resultLevel").textContent = levelFor(total);
   document.querySelector("#resultFill").style.width = `${percent}%`;
 }
+let shareImageBusy = false;
+let previewImageUrl = null;
+const shareImageSize = { width: 1080, height: 2400 };
+const shareImageColors = { background: "#F8F6F1", text: "#18201C", green: "#138A68", beige: "#E8E1D5", secondary: "#747A75" };
+
+function drawRoundedRect(ctx, x, y, width, height, radius, fill) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, height, radius);
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+async function generateShareImage() {
+  await document.fonts?.ready;
+  const sourceSvg = document.querySelector("#campus-map");
+  const svg = sourceSvg.cloneNode(true);
+  svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  svg.setAttribute("width", "1000");
+  svg.setAttribute("height", "2200");
+  svg.style.background = shareImageColors.background;
+  svg.querySelector(".map-ground")?.setAttribute("fill", shareImageColors.background);
+  svg.querySelector(".map-ground")?.setAttribute("style", `fill:${shareImageColors.background}`);
+  svg.querySelectorAll(".map-location").forEach(room => {
+    const visited = selectedIds.has(room.dataset.locationId);
+    room.querySelectorAll("rect, path, polygon").forEach(shape => {
+      shape.setAttribute("fill", visited ? shareImageColors.green : shareImageColors.beige);
+      shape.setAttribute("stroke", visited ? "#0F7357" : "#D6CDBE");
+      shape.setAttribute("style", `fill:${visited ? shareImageColors.green : shareImageColors.beige};stroke:${visited ? "#0F7357" : "#D6CDBE"};stroke-width:2`);
+    });
+    room.querySelectorAll("text, tspan").forEach(label => {
+      label.setAttribute("fill", visited ? "#FFFFFF" : "#4B514C");
+      label.style.fontFamily = "Inter, Arial, sans-serif";
+      label.style.fontWeight = "600";
+    });
+  });
+  svg.querySelectorAll(".map-corridor rect").forEach(shape => shape.setAttribute("style", "fill:#F1EEE7;stroke:#D8D2C8;stroke-width:2"));
+  svg.querySelectorAll(".map-corridor text, .map-structure text, .map-label text").forEach(label => {
+    label.setAttribute("fill", shareImageColors.secondary);
+    label.style.fontFamily = "Inter, Arial, sans-serif";
+  });
+  svg.querySelectorAll(".map-structure rect").forEach(shape => shape.setAttribute("style", "fill:#EEE9DF;stroke:#D8D2C8;stroke-width:2"));
+  const svgBlob = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  try {
+    const mapImage = new Image();
+    mapImage.decoding = "async";
+    mapImage.src = svgUrl;
+    await mapImage.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = shareImageSize.width;
+    canvas.height = shareImageSize.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas unavailable");
+    ctx.fillStyle = shareImageColors.background;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = shareImageColors.green;
+    ctx.beginPath(); ctx.roundRect(72, 65, 44, 44, 13); ctx.fill();
+    ctx.fillStyle = "#FFFFFF"; ctx.font = "700 27px Arial, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("✳", 94, 87);
+    ctx.fillStyle = shareImageColors.text; ctx.textAlign = "left"; ctx.font = "800 27px Arial, sans-serif"; ctx.fillText("OUR DIIT CAMPUS", 132, 87);
+    ctx.fillStyle = shareImageColors.secondary; ctx.font = "700 19px Arial, sans-serif"; ctx.letterSpacing = "4px"; ctx.fillText("MY CAMPUS", 72, 160); ctx.letterSpacing = "0px";
+    const total = selectedIds.size, places = allLocations.length;
+    const percent = Math.round(total / places * 100);
+    ctx.fillStyle = shareImageColors.text; ctx.font = "800 88px Arial, sans-serif"; ctx.fillText(`${total} / ${places}`, 72, 260);
+    ctx.fillStyle = shareImageColors.green; ctx.font = "800 23px Arial, sans-serif"; ctx.letterSpacing = "4px"; ctx.fillText(`${percent}% EXPLORED`, 76, 310); ctx.letterSpacing = "0px";
+    drawRoundedRect(ctx, 72, 345, 350, 58, 18, "#E4EFE8");
+    ctx.fillStyle = "#0F7357"; ctx.font = "700 24px Arial, sans-serif"; ctx.fillText(levelFor(total), 95, 374);
+
+    const mapBox = { x: 120, y: 415, width: 840, height: 1848 };
+    const scale = Math.min(mapBox.width / 1000, mapBox.height / 2200);
+    const mapWidth = 1000 * scale, mapHeight = 2200 * scale;
+    ctx.save();
+    ctx.shadowColor = "rgba(24,32,28,.08)"; ctx.shadowBlur = 22; ctx.shadowOffsetY = 6;
+    drawRoundedRect(ctx, mapBox.x - 26, mapBox.y - 20, mapWidth + 52, mapHeight + 40, 18, "#FFFFFF");
+    ctx.restore();
+    ctx.drawImage(mapImage, mapBox.x, mapBox.y, mapWidth, mapHeight);
+
+    const footerY = 2290;
+    drawRoundedRect(ctx, 78, footerY, 23, 23, 5, shareImageColors.green);
+    ctx.fillStyle = shareImageColors.text; ctx.font = "600 21px Arial, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText("Visited", 112, footerY + 11);
+    drawRoundedRect(ctx, 260, footerY, 23, 23, 5, shareImageColors.beige);
+    ctx.strokeStyle = "#D6CDBE"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = shareImageColors.text; ctx.fillText("Not Visited", 294, footerY + 11);
+    ctx.fillStyle = shareImageColors.secondary; ctx.font = "500 20px Arial, sans-serif"; ctx.textAlign = "center"; ctx.fillText("How much of the campus have you explored?", 540, 2360);
+    ctx.fillStyle = shareImageColors.secondary; ctx.font = "600 15px Arial, sans-serif"; ctx.fillText("OUR DIIT CAMPUS  ·  CAMPUS EXPLORER", 540, 2390);
+    return await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("PNG export failed")), "image/png"));
+  } finally { URL.revokeObjectURL(svgUrl); }
+}
+
+function downloadShareImage(blob) {
+  const total = selectedIds.size, places = allLocations.length;
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `campus-explorer-${total}-of-${places}.png`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+async function withShareImage(button, action) {
+  const status = document.querySelector("#copyStatus");
+  if (shareImageBusy) return;
+  shareImageBusy = true;
+  const buttons = ["#shareCampusMap", "#downloadCampusMap", "#copyMapImage"].map(selector => document.querySelector(selector));
+  const oldLabel = button.textContent;
+  buttons.forEach(item => { item.disabled = true; });
+  button.textContent = "Generating map…";
+  status.textContent = "";
+  try {
+    const blob = await generateShareImage();
+    await action(blob);
+  } catch (error) {
+    if (error?.name === "AbortError") status.textContent = "Sharing cancelled.";
+    else status.textContent = "Could not create the map image. Please try again.";
+  } finally {
+    button.textContent = oldLabel;
+    buttons.forEach(item => { item.disabled = false; });
+    shareImageBusy = false;
+  }
+}
+
+async function refreshSharePreview() {
+  const image = document.querySelector("#resultMapPreview");
+  const loading = document.querySelector("#resultPreviewLoading");
+  loading.hidden = false; image.hidden = true;
+  try {
+    const blob = await generateShareImage();
+    if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
+    previewImageUrl = URL.createObjectURL(blob);
+    image.src = previewImageUrl;
+    image.hidden = false; loading.hidden = true;
+  } catch { loading.textContent = "Map preview unavailable. You can still try downloading the image."; }
+}
+
 function openModal(modal) {
   lastFocused = document.activeElement;
   modal.hidden = false;
@@ -218,7 +351,7 @@ document.querySelector("#clearAll").addEventListener("click", () => {
 document.querySelector("#confirmClear").addEventListener("click", () => {
   selectedIds.clear(); updateUI(); saveProgress(); closeModal(ui.confirmModal);
 });
-document.querySelector("#viewResult").addEventListener("click", () => openModal(ui.resultModal));
+document.querySelector("#viewResult").addEventListener("click", () => { openModal(ui.resultModal); refreshSharePreview(); });
 document.querySelectorAll("[data-close-modal]").forEach(button => button.addEventListener("click", () => closeModal(button.closest(".modal-backdrop"))));
 document.querySelectorAll(".modal-backdrop").forEach(backdrop => backdrop.addEventListener("click", event => { if (event.target === backdrop) closeModal(backdrop); }));
 document.addEventListener("keydown", event => {
@@ -233,6 +366,33 @@ document.querySelector("#copyResult").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(resultText()); status.textContent = "Copied to clipboard!"; }
   catch { status.textContent = "Clipboard unavailable in this browser."; }
 });
+document.querySelector("#downloadCampusMap").addEventListener("click", event => withShareImage(event.currentTarget, blob => { downloadShareImage(blob); document.querySelector("#copyStatus").textContent = "Map image downloaded."; }));
+document.querySelector("#shareCampusMap").addEventListener("click", event => withShareImage(event.currentTarget, async blob => {
+  const total = selectedIds.size, places = allLocations.length, percent = Math.round(total / places * 100);
+  const canShareFile = typeof File !== "undefined" && navigator.share && navigator.canShare;
+  const file = canShareFile ? new File([blob], `campus-explorer-${total}-of-${places}.png`, { type: "image/png" }) : null;
+  if (canShareFile && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ title: "My Campus Explorer Map", text: `I explored ${total}/${places} campus places (${percent}%)!\nMy level: ${levelFor(total)}`, files: [file] });
+      document.querySelector("#copyStatus").textContent = "Campus map shared.";
+    } catch (error) {
+      if (error?.name === "AbortError") throw error;
+      downloadShareImage(blob);
+      document.querySelector("#copyStatus").textContent = "Image saved! You can now share it anywhere.";
+    }
+  } else {
+    downloadShareImage(blob);
+    document.querySelector("#copyStatus").textContent = "Image saved! You can now share it anywhere.";
+  }
+}));
+const copyMapButton = document.querySelector("#copyMapImage");
+if (navigator.clipboard?.write && window.ClipboardItem && window.isSecureContext) {
+  copyMapButton.hidden = false;
+  copyMapButton.addEventListener("click", event => withShareImage(event.currentTarget, async blob => {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    document.querySelector("#copyStatus").textContent = "Map image copied.";
+  }));
+}
 ["#themeToggle", "#themeToggleMobile"].forEach(selector => document.querySelector(selector).addEventListener("click", () => {
   document.body.classList.toggle("dark"); updateThemeButtons(); saveProgress();
 }));

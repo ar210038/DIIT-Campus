@@ -136,7 +136,25 @@
     <section class="modal confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle"><button class="modal-close" type="button" data-close-modal aria-label="Close">×</button><span class="modal-icon">↺</span><p class="eyebrow">START FRESH</p><h2 id="confirmTitle">Clear your visited places?</h2><p>Your campus journey will reset to the beginning.</p><div class="modal-actions"><button type="button" class="button-secondary" data-close-modal>Keep exploring</button><button type="button" class="button-primary" id="confirmClear">Clear all</button></div></section>
   </div>
   <div class="modal-backdrop" id="resultModal" hidden>
-    <section class="modal result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle"><button class="modal-close" type="button" data-close-modal aria-label="Close">×</button><div class="result-spark" aria-hidden="true">✳</div><p class="eyebrow">MY CAMPUS</p><h2 id="resultTitle"><span id="resultCount">0 / 50</span></h2><div class="result-progress"><span id="resultPercent">0% EXPLORED</span><div class="result-track"><i id="resultFill"></i></div></div><div class="result-level" id="resultLevel">New Student 🌱</div><p class="result-question">How much of the campus have you explored?</p><button type="button" class="button-primary copy-button" id="copyResult">Copy Result <span aria-hidden="true">⧉</span></button><span class="copy-status" id="copyStatus" aria-live="polite"></span></section>
+    <section class="modal result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+      <button class="modal-close" type="button" data-close-modal aria-label="Close">×</button>
+      <div class="result-brand"><span class="brand-mark" aria-hidden="true">✳</span> OUR DIIT CAMPUS</div>
+      <p class="eyebrow result-eyebrow">MY CAMPUS</p>
+      <h2 id="resultTitle"><span id="resultCount">0 / 50</span></h2>
+      <div class="result-progress"><span id="resultPercent">0% EXPLORED</span><div class="result-track"><i id="resultFill"></i></div></div>
+      <div class="result-level" id="resultLevel">New Student 🌱</div>
+      <div class="result-map-preview"><img id="resultMapPreview" alt="Preview of your campus map with visited rooms highlighted" hidden><div class="result-preview-loading" id="resultPreviewLoading">Preparing your campus map…</div></div>
+      <div class="result-map-legend"><span><i class="legend-dot visited"></i>Visited</span><span><i class="legend-dot"></i>Not Visited</span></div>
+      <p class="result-question">How much of the campus have you explored?</p>
+      <div class="result-actions">
+        <button type="button" class="button-primary" id="shareCampusMap">Share My Campus Map</button>
+        <button type="button" class="button-secondary" id="downloadCampusMap">Download Map</button>
+        <button type="button" class="button-secondary" id="copyMapImage" hidden>Copy Map Image</button>
+        <button type="button" class="button-secondary" id="copyResult">Copy Result</button>
+        <button type="button" class="button-secondary" data-close-modal>Close</button>
+      </div>
+      <span class="copy-status" id="copyStatus" aria-live="polite"></span>
+    </section>
   </div>
 </body>
 </html>
